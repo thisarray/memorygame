@@ -9,6 +9,7 @@ import sys
 sys.path.append('.')
 
 import random
+import pygame
 
 from card import Card
 from timer import Timer
@@ -24,19 +25,19 @@ CARD_START_X = 220
 CARD_START_Y = 130
 TIME_LIMIT = 60
 
-
+TITLE = "Lake District Memory Game"
 WIDTH = 800
 HEIGHT = 600
 
 cards_available = {
-    'breakout' : 'memorycard_breakout',
-    'donkeykong' : 'memorycard_donkeykong',
-    'frogger' : 'memorycard_frogger',
-    'mario' : 'memorycard_mario',
-    'mspacman' : 'memorycard_mspacman',
-    'pacman' : 'memorycard_pacman',
-    'sonic' : 'memorycard_sonic',
-    'spaceinvaders' : 'memorycard_spaceinvaders'
+    'airafalls' : 'memorycard_airafalls',
+    'ambleside' : 'memorycard_ambleside',
+    'bridgehouse' : 'memorycard_bridgehouse',
+    'derwentwater' : 'memorycard_derwentwater',
+    'ravenglassrailway' : 'memorycard_ravenglassrailway',
+    'ullswater' : 'memorycard_ullswater',
+    'weatherstone' : 'memorycard_weatherstone',
+    'windermere' : 'memorycard_windermere'
     }
 
 card_back = "memorycard_back"
