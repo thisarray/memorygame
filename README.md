@@ -5,7 +5,7 @@ This is based on the classic memory card game. It's a great way for children to 
 
 ![Screenshot of the memory card game](http://www.penguintutor.com/projects/images/memorygame01.png)
 
-The cards are designed around classic retro computer games from the 1980s.
+The cards are based on photographs taken in The Lake District in the UK.
 
 ## Install
 Requires Pygame Zero to be installed (included on Raspberry Pi). 
