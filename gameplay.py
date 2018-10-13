@@ -1,4 +1,4 @@
-
+from timer import Timer
 
 # Status is tracked as a number, but to make the code readable constants are used
 STATUS_NEW = 0                  # Game is ready to start, but not running
@@ -6,6 +6,9 @@ STATUS_PLAYER1_START = 1
 STATUS_PLAYER1_CARDS_1 = 2
 STATUS_PLAYER1_CARDS_2 = 3
 STATUS_END = 50
+
+# Number of seconds to display high score before allowing click to continue
+TIME_DISPLAY_SCORE = 3
 
 class GamePlay:
     
@@ -20,7 +23,8 @@ class GamePlay:
     # Should be a positive number which is the index in the array (-1 is not set)
     cards_selected = [-1, -1]
     
-    def __init__(self):
+    def __init__(self, count_down):
+        self.count_down = count_down
         pass
     
     # If game has not yet started
@@ -35,6 +39,9 @@ class GamePlay:
         return False
         
     def setGameOver(self):
+        # Add short timer for game over to ensure
+        # player gets to see high score
+        self.count_down.start_count_down(TIME_DISPLAY_SCORE)
         self.status = STATUS_END
         
     def isGameRunning(self):

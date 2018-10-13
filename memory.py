@@ -42,8 +42,9 @@ cards_available = {
 
 card_back = "memorycard_back"
 
-game_status = GamePlay()
 count_down = Timer(TIME_LIMIT)
+game_status = GamePlay(count_down)
+
 
 def draw():
     screen.fill((220, 220, 220))
@@ -67,12 +68,14 @@ def on_mouse_down(pos, button):
     if (game_status.isNewGame()):
         game_status.startGame()
         # start the timer
-        count_down.start_count_down()
+        count_down.start_count_down(TIME_LIMIT)
         dealcards()
         return
     # If game over then this click is to get to new game screen
     if (game_status.isGameOver()):
-        game_status.setNewGame()
+        # Make sure the timer has reached zero (short delay to see score)
+        if (count_down.get_time_remaining()<=0):
+            game_status.setNewGame()
         return
         
     ## Reach here then we are in game play
