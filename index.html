@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lake District Memory Game</title>
+  <script src="../jsgame0.js"></script>
+  <style type="text/css" media="screen">
+body {
+  background-color: white;
+  color: black;
+}
+.hidden {
+  display: none;
+}
+#original {
+  margin-left: 1em;
+}
+  </style>
+</head>
+
+<body>
+<section id="imageLoader" class="hidden">
+  <img class="hidden" src="images/memorycard_airafalls.png" alt="memorycard_airafalls" data-name="memorycard_airafalls">
+  <img class="hidden" src="images/memorycard_ambleside.png" alt="memorycard_ambleside" data-name="memorycard_ambleside">
+  <img class="hidden" src="images/memorycard_back.png" alt="memorycard_back" data-name="memorycard_back">
+  <img class="hidden" src="images/memorycard_bridgehouse.png" alt="memorycard_bridgehouse" data-name="memorycard_bridgehouse">
+  <img class="hidden" src="images/memorycard_derwentwater.png" alt="memorycard_derwentwater" data-name="memorycard_derwentwater">
+  <img class="hidden" src="images/memorycard_ravenglassrailway.png" alt="memorycard_ravenglassrailway" data-name="memorycard_ravenglassrailway">
+  <img class="hidden" src="images/memorycard_ullswater.png" alt="memorycard_ullswater" data-name="memorycard_ullswater">
+  <img class="hidden" src="images/memorycard_weatherstone.png" alt="memorycard_weatherstone" data-name="memorycard_weatherstone">
+  <img class="hidden" src="images/memorycard_windermere.png" alt="memorycard_windermere" data-name="memorycard_windermere">
+</section>
+
+<main>
+<h1>Lake District Memory Game</h1>
+
+<canvas id="screen">
+The game screen appears here if your browser supports the Canvas API.
+</canvas>
+<section id="controls">
+  <button type="button" id="reset">Reset</button>
+  <button type="button" id="pause">Pause</button>
+</section>
+
+<h2>Attribution</h2>
+
+<p>Licensed under <a href="https://www.gnu.org/licenses/">GNU GENERAL PUBLIC LICENSE Version 3</a>.</p>
+
+<h2>Original Python code</h2>
+
+<pre id="original"><code>
+# Memory Card Game - PyGame Zero
+# This is licensed under GNU GENERAL PUBLIC LICENSE Version 3
+# See : https://github.com/penguintutor/memorygame
+
+import math
+import time
+
+# If running on a computer that doesn&#x27;t include . in the Python Search Path
+# Includes Raspbian on x86
+import sys
+sys.path.append(&#x27;.&#x27;)
+
+import random
+import pygame
+
+from pgzero.actor import Actor
+
+# Card is based on an Actor (uses inheritance)
+class Card(Actor):
+
+    # Status can be &#x27;back&#x27; (turned over) &#x27;front&#x27; (turned up) or &#x27;hidden&#x27; (already used)
+    status = &#x27;back&#x27;
+
+
+    def __init__(self, name, back_image, card_image):
+        Actor.__init__(self, back_image, (0,0))
+        self.name = name
+        self.back_image = back_image
+        self.card_image = card_image
+
+    def turnOver(self):
+        if (self.status == &#x27;back&#x27;):
+            self.status = &#x27;front&#x27;
+            self.image = self.card_image
+        elif (self.status == &#x27;front&#x27;):
+            self.status = &#x27;back&#x27;
+            self.image = self.back_image
+        # Attempt to turn over a hidden card - ignore
+        else:
+            return
+
+    # Override Actor.draw
+    def draw(self):
+        if (self.status == &#x27;hidden&#x27;):
+            return
+        Actor.draw(self)
+
+    def hide(self):
+        self.status = &#x27;hidden&#x27;
+
+    # When unhide set it to back image
+    def unhide (self):
+        self.status = &#x27;back&#x27;
+        self.image = self.back_image
+
+    def isHidden (self):
+        if self.status == &#x27;hidden&#x27;:
+            return True
+        return False
+
+    # Is it turned to face forward
+    def isFaceUp (self):
+        if self.status == &#x27;front&#x27;:
+            return True
+        return False
+
+    def reset (self):
+        self.unhide()
+
+    def toString(self):
+        return self.name
+
+    def setPosition(self, x, y):
+        self.x = x
+        self.y = y
+
+    def equals (self, othercard):
+        if self.name == othercard.toString():
+            return True
+        return False
+
+class Timer():
+
+    def __init__(self, start_count):
+        self.start_count = start_count
+        self.start_time = time.time()
+
+    # start count down, with optional parameter to replace the start_count value
+    # -1 is used as a &quot;magic number&quot;, this method should only be called with positive number
+    # if it isn&#x27;t given a number then -1 indicates no new time give
+    def start_count_down(self, new_time = -1):
+        if (new_time &gt;= 0):
+            self.start_count = new_time
+        self.start_time = time.time()
+
+    def get_time_remaining(self):
+        current_time = self.start_count + self.start_time - time.time()
+        if (current_time &lt;= 0):
+            return 0
+        return math.ceil(current_time)
+
+# Status is tracked as a number, but to make the code readable constants are used
+STATUS_NEW = 0                  # Game is ready to start, but not running
+STATUS_PLAYER1_START = 1
+STATUS_PLAYER1_CARDS_1 = 2
+STATUS_PLAYER1_CARDS_2 = 3
+STATUS_END = 50
+
+# Number of seconds to display high score before allowing click to continue
+TIME_DISPLAY_SCORE = 3
+
+class GamePlay:
+
+    # These are what we need to track
+    score = 0
+
+
+
+    status = STATUS_NEW
+
+    # These are the cards that have been turned up.
+    # Should be a positive number which is the index in the array (-1 is not set)
+    cards_selected = [-1, -1]
+
+    def __init__(self, count_down):
+        self.count_down = count_down
+        pass
+
+    # If game has not yet started
+    def isNewGame(self):
+        if self.status == STATUS_NEW:
+            return True
+        return False
+
+    def isGameOver(self):
+        if self.status == STATUS_END:
+            return True
+        return False
+
+    def setGameOver(self):
+        # Add short timer for game over to ensure
+        # player gets to see high score
+        self.count_down.start_count_down(TIME_DISPLAY_SCORE)
+        self.status = STATUS_END
+
+    def isGameRunning(self):
+        if (self.status &gt;= STATUS_PLAYER1_START and self.status &lt; STATUS_END):
+            return True
+        return False
+
+    def startGame(self):
+        self.score = 0
+        self.status = STATUS_PLAYER1_START
+
+    def setNewGame(self):
+        self.status = STATUS_NEW
+
+    def isPairTurnedOver(self):
+        if (self.status == STATUS_PLAYER1_CARDS_2):
+            return True
+        return False
+
+    # Return the index position of the specified card
+    def getCard(self, card_number):
+        return self.cards_selected[card_number]
+
+    # Point scored, so add score and update status
+    def scorePoint(self):
+        self.score += 1
+        self.status = STATUS_PLAYER1_START
+
+    def getScore(self):
+        return self.score
+
+    # Not a pair - just update status
+    def notPair(self):
+        self.status = STATUS_PLAYER1_START
+
+    # If a card is clicked then update the status accordingly
+    def cardClicked(self, card_index):
+        if (self.status == STATUS_PLAYER1_START):
+            self.cards_selected[0] = card_index
+            self.status = STATUS_PLAYER1_CARDS_1
+        elif (self.status == STATUS_PLAYER1_CARDS_1):
+            self.cards_selected[1] = card_index
+            self.status = STATUS_PLAYER1_CARDS_2
+
+# These constants are used to simplify the game
+# For more flexibility these could be replaced with configurable variables
+# (eg. different number of cards for different difficulty levels)
+NUM_CARDS_PER_ROW = 4
+X_DISTANCE_BETWEEN_CARDS = 120
+Y_DISTANCE_BETWEEN_CARDS = 120
+CARD_START_X = 220
+CARD_START_Y = 130
+TIME_LIMIT = 60
+
+TITLE = &quot;Lake District Memory Game&quot;
+WIDTH = 800
+HEIGHT = 600
+
+cards_available = {
+    &#x27;airafalls&#x27; : &#x27;memorycard_airafalls&#x27;,
+    &#x27;ambleside&#x27; : &#x27;memorycard_ambleside&#x27;,
+    &#x27;bridgehouse&#x27; : &#x27;memorycard_bridgehouse&#x27;,
+    &#x27;derwentwater&#x27; : &#x27;memorycard_derwentwater&#x27;,
+    &#x27;ravenglassrailway&#x27; : &#x27;memorycard_ravenglassrailway&#x27;,
+    &#x27;ullswater&#x27; : &#x27;memorycard_ullswater&#x27;,
+    &#x27;weatherstone&#x27; : &#x27;memorycard_weatherstone&#x27;,
+    &#x27;windermere&#x27; : &#x27;memorycard_windermere&#x27;
+    }
+
+card_back = &quot;memorycard_back&quot;
+
+count_down = Timer(TIME_LIMIT)
+game_status = GamePlay(count_down)
+
+
+def draw():
+    screen.fill((220, 220, 220))
+    if (game_status.isNewGame()):
+        screen.draw.text(&quot;Click mouse to start&quot;, fontsize=60, center=(WIDTH/2,HEIGHT/2), shadow=(1,1), color=(255,255,255), scolor=&quot;#202020&quot;)
+    if (game_status.isGameOver()):
+        screen.draw.text(&quot;Game Over\nScore: &quot;+str(game_status.getScore()), fontsize=60, center=(WIDTH/2,HEIGHT/2), shadow=(1,1), color=(255,255,255), scolor=&quot;#202020&quot;)
+    if (game_status.isGameRunning()):
+        for card in all_cards:
+            card.draw()
+        screen.draw.text(&quot;Time remaining: &quot;+str(count_down.get_time_remaining()), fontsize=40, bottomleft=(50,50), color=(0,0,0))
+        screen.draw.text(&quot;Score: &quot;+str(game_status.getScore()), fontsize=40, bottomleft=(600,50), color=(0,0,0))
+
+
+# Mouse clicked
+def on_mouse_down(pos, button):
+    # Only interested in the left button
+    if (not button == mouse.LEFT):
+        return
+    # If new game then this click is to start the game
+    if (game_status.isNewGame()):
+        game_status.startGame()
+        # start the timer
+        count_down.start_count_down(TIME_LIMIT)
+        dealcards()
+        return
+    # If game over then this click is to get to new game screen
+    if (game_status.isGameOver()):
+        # Make sure the timer has reached zero (short delay to see score)
+        if (count_down.get_time_remaining()&lt;=0):
+            game_status.setNewGame()
+        return
+
+    ## Reach here then we are in game play
+
+    # First check for both already clicked and this is a click to test
+    if (game_status.isPairTurnedOver()):
+        if (all_cards[game_status.getCard(0)].equals(all_cards[game_status.getCard(1)])):
+            # Add points and hide the cards
+            game_status.scorePoint()
+            all_cards[game_status.getCard(0)].hide()
+            all_cards[game_status.getCard(1)].hide()
+            # Check if we are at the end of this level (all cards done)
+            if (end_level_reached()):
+                dealcards()
+        # If not match then turn both around
+        else:
+            all_cards[game_status.getCard(0)].turnOver()
+            all_cards[game_status.getCard(1)].turnOver()
+            game_status.notPair()
+        return
+
+    ## Otherwise we just turn over the next card if clicked
+    for i in range (len(all_cards)):
+        if (all_cards[i].collidepoint(pos)):
+            # Ignore if card hidden, or has already been turned up
+            if (all_cards[i].isHidden() or all_cards[i].isFaceUp()):
+                return
+            all_cards[i].turnOver()
+            # Update status
+            game_status.cardClicked(i)
+
+
+
+def update():
+    if (game_status.isNewGame()):
+        pass
+    elif (game_status.isGameOver()):
+        pass
+    else:
+        if (count_down.get_time_remaining()&lt;=0):
+            game_status.setGameOver()
+
+
+
+# Shuffle the cards and update their positions
+# Do not draw as this is called before the screen is properly setup
+def dealcards():
+    # Create a temporary list of card indexes that is then shuffled
+    keys = []
+    for i in range (len(all_cards)):
+        keys.append(i)
+    random.shuffle(keys)
+
+    # Setup card positions
+    xpos = CARD_START_X
+    ypos = CARD_START_Y
+    cards_on_row = 0
+    for key in keys:
+        # Reset (ie. unhide if hidden and display back)
+        all_cards[key].reset()
+        all_cards[key].setPosition(xpos,ypos)
+        xpos += X_DISTANCE_BETWEEN_CARDS
+
+        cards_on_row += 1
+        # If reached end of row - move to next
+        if (cards_on_row &gt;= NUM_CARDS_PER_ROW):
+            cards_on_row = 0
+            xpos = CARD_START_X
+            ypos += Y_DISTANCE_BETWEEN_CARDS
+
+# If reach end of level ?
+def end_level_reached():
+    for card in all_cards:
+        if (not card.isHidden()):
+            return False
+    return True
+
+# End of functions - start of initialization code
+
+all_cards = []
+# Create individual card objects, two per image
+for key in cards_available.keys():
+    # Add to list of cards
+    all_cards.append(Card(key, card_back, cards_available[key]))
+    # Add again (to have 2 cards for each img)
+    all_cards.append(Card(key, card_back, cards_available[key]))
+
+dealcards()
+
+
+</code></pre>
+</main>
+
+<script>
+/*
+ * Memory Card Game - PyGame Zero
+ */
+
+/*
+ * Return a random integer N such that min <= N < max.
+ */
+function getRandomInteger(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor((Math.random() * (max - min)) + min);
+}
+
+/*
+ * Shuffle Array x in place.
+ */
+function shuffle(x) {
+  let j, temp;
+  for (let i = x.length - 1; i > 0; i--) {
+    // pick an element in x[:i+1] with which to exchange x[i]
+    j = getRandomInteger(0, i + 1);
+    temp = x[i];
+    x[i] = x[j];
+    x[j] = temp;
+  }
+}
+
+/*
+ * Card is based on an Actor (uses inheritance)
+ */
+class Card extends Actor {
+  constructor(name, back_image, card_image) {
+    super(back_image, [0, 0]);
+
+    this.cardName = name;
+    this.back_image = back_image;
+    this.card_image = card_image;
+
+    // Status can be 'back' (turned over) 'front' (turned up) or 'hidden' (already used)
+    this.status = 'back';
+  }
+
+  turnOver() {
+    if (this.status === 'back') {
+      this.status = 'front';
+      this.name = this.card_image;
+    }
+    else if (this.status === 'front') {
+      this.status = 'back';
+      this.name = this.back_image;
+    }
+    // Attempt to turn over a hidden card - ignore
+  }
+
+  // Override Actor.draw
+  draw() {
+    if (this.status === 'hidden') {
+      return;
+    }
+    super.draw();
+  }
+
+  hide() {
+    this.status = 'hidden';
+  }
+
+  // When unhide set it to back image
+  unhide() {
+    this.status = 'back';
+    this.name = this.back_image;
+  }
+
+  isHidden() {
+    if (this.status === 'hidden') {
+      return true;
+    }
+    return false;
+  }
+
+  // Is it turned to face forward
+  isFaceUp() {
+    if (this.status === 'front') {
+      return true;
+    }
+    return false;
+  }
+
+  reset() {
+    this.unhide();
+  }
+
+  toString() {
+    return this.cardName;
+  }
+
+  setPosition(x, y) {
+    this.posx = x;
+    this.posy = y;
+  }
+
+  equals(othercard) {
+    if (this.cardName === othercard.toString()) {
+      return true;
+    }
+    return false;
+  }
+}
+
+class Timer {
+  constructor(start_count) {
+    this.start_count = start_count;
+    this.active = false;
+    this.elapsed = 0;
+  }
+
+  /*
+   * start count down, with optional parameter to replace the start_count value
+   * -1 is used as a "magic number", this method should only be called with positive number
+   * if it isn't given a number then -1 indicates no new time give
+   */
+  start_count_down(new_time = -1) {
+    if (new_time >= 0) {
+      this.start_count = new_time;
+    }
+    this.active = true;
+    this.elapsed = 0;
+  }
+
+  get_time_remaining() {
+    let current_time = this.start_count - this.elapsed;
+    if (current_time <= 0) {
+      return 0;
+    }
+    return Math.ceil(current_time);
+  }
+
+  update(dt) {
+    if (this.active) {
+      this.elapsed += dt;
+    }
+  }
+}
+
+// Status is tracked as a number, but to make the code readable constants are used
+const STATUS_NEW = 0;                  // Game is ready to start, but not running
+const STATUS_PLAYER1_START = 1;
+const STATUS_PLAYER1_CARDS_1 = 2;
+const STATUS_PLAYER1_CARDS_2 = 3;
+const STATUS_END = 50;
+
+// Number of seconds to display high score before allowing click to continue
+const TIME_DISPLAY_SCORE = 3;
+
+class GamePlay {
+  constructor(count_down) {
+    this.count_down = count_down;
+
+    // These are what we need to track
+    this.score = 0;
+
+    this.status = STATUS_NEW;
+
+    // These are the cards that have been turned up.
+    // Should be a positive number which is the index in the array (-1 is not set)
+    this.cards_selected = [-1, -1];
+  }
+
+  // If game has not yet started
+  isNewGame() {
+    if (this.status === STATUS_NEW) {
+      return true;
+    }
+    return false;
+  }
+
+  isGameOver() {
+    if (this.status === STATUS_END) {
+      return true;
+    }
+    return false;
+  }
+
+  setGameOver() {
+    // Add short timer for game over to ensure
+    // player gets to see high score
+    this.count_down.start_count_down(TIME_DISPLAY_SCORE);
+    this.status = STATUS_END;
+  }
+
+  isGameRunning() {
+    if ((this.status >= STATUS_PLAYER1_START) && (this.status < STATUS_END)) {
+      return true;
+    }
+    return false;
+  }
+
+  startGame() {
+    this.score = 0;
+    this.status = STATUS_PLAYER1_START;
+  }
+
+  setNewGame() {
+    this.status = STATUS_NEW;
+  }
+
+  isPairTurnedOver() {
+    if (this.status === STATUS_PLAYER1_CARDS_2) {
+      return true;
+    }
+    return false;
+  }
+
+  // Return the index position of the specified card
+  getCard(card_number) {
+    return this.cards_selected[card_number];
+  }
+
+  // Point scored, so add score and update status
+  scorePoint() {
+    this.score += 1;
+    this.status = STATUS_PLAYER1_START;
+  }
+
+  getScore() {
+    return this.score;
+  }
+
+  // Not a pair - just update status
+  notPair() {
+    this.status = STATUS_PLAYER1_START;
+  }
+
+  // If a card is clicked then update the status accordingly
+  cardClicked(card_index) {
+    if (this.status === STATUS_PLAYER1_START) {
+      this.cards_selected[0] = card_index;
+      this.status = STATUS_PLAYER1_CARDS_1;
+    }
+    else if (this.status === STATUS_PLAYER1_CARDS_1) {
+      this.cards_selected[1] = card_index;
+      this.status = STATUS_PLAYER1_CARDS_2;
+    }
+  }
+}
+
+/*
+ * These constants are used to simplify the game
+ * For more flexibility these could be replaced with configurable variables
+ * (eg. different number of cards for different difficulty levels)
+ */
+const NUM_CARDS_PER_ROW = 4;
+const X_DISTANCE_BETWEEN_CARDS = 120;
+const Y_DISTANCE_BETWEEN_CARDS = 120;
+const CARD_START_X = 220;
+const CARD_START_Y = 130;
+const TIME_LIMIT = 60;
+
+TITLE = "Lake District Memory Game";
+WIDTH = 800;
+HEIGHT = 600;
+
+const CARDS_AVAILABLE = new Map([
+  ['airafalls', 'memorycard_airafalls'],
+  ['ambleside', 'memorycard_ambleside'],
+  ['bridgehouse', 'memorycard_bridgehouse'],
+  ['derwentwater', 'memorycard_derwentwater'],
+  ['ravenglassrailway', 'memorycard_ravenglassrailway'],
+  ['ullswater', 'memorycard_ullswater'],
+  ['weatherstone', 'memorycard_weatherstone'],
+  ['windermere', 'memorycard_windermere']
+]);
+
+const CARD_BACK = "memorycard_back";
+
+let count_down, game_status, all_cards;
+
+function draw() {
+  screen.fill([220, 220, 220]);
+  if (game_status.isNewGame()) {
+    screen.draw.text("Click mouse to start", {
+      fontsize: 60,
+      center: [WIDTH / 2, HEIGHT / 2],
+      shadow: [1, 1],
+      color: [255, 255, 255],
+      scolor: "#202020"
+    });
+  }
+  if (game_status.isGameOver()) {
+    screen.draw.text("Game Over\nScore: " + game_status.getScore(), {
+      fontsize: 60,
+      center: [WIDTH / 2, HEIGHT / 2],
+      shadow: [1, 1],
+      color: [255, 255, 255],
+      scolor: "#202020"
+    });
+  }
+  if (game_status.isGameRunning()) {
+    for (let card of all_cards) {
+      card.draw();
+    }
+    screen.draw.text("Time remaining: " + count_down.get_time_remaining(), {
+      fontsize: 40,
+      bottomleft: [50, 50],
+      color: [0, 0, 0]
+    });
+    screen.draw.text("Score: " + game_status.getScore(), {
+      fontsize: 40,
+      bottomleft: [600, 50],
+      color: [0, 0, 0]
+    });
+  }
+}
+
+// Mouse clicked
+function on_mouse_down(pos, button) {
+  // Only interested in the left button
+  if ((button & mouse.LEFT) <= 0) {
+    return;
+  }
+  // If new game then this click is to start the game
+  if (game_status.isNewGame()) {
+    game_status.startGame();
+    // start the timer
+    count_down.start_count_down(TIME_LIMIT);
+    dealcards();
+    return;
+  }
+  // If game over then this click is to get to new game screen
+  if (game_status.isGameOver()) {
+    // Make sure the timer has reached zero (short delay to see score)
+    if (count_down.get_time_remaining() <= 0) {
+      game_status.setNewGame();
+    }
+    return;
+  }
+
+  // Reach here then we are in game play
+
+  // First check for both already clicked and this is a click to test
+  if (game_status.isPairTurnedOver()) {
+    if (all_cards[game_status.getCard(0)].equals(all_cards[game_status.getCard(1)])) {
+      // Add points and hide the cards
+      game_status.scorePoint();
+      all_cards[game_status.getCard(0)].hide();
+      all_cards[game_status.getCard(1)].hide();
+      // Check if we are at the end of this level (all cards done)
+      if (end_level_reached()) {
+        dealcards();
+      }
+    }
+    // If not match then turn both around
+    else {
+      all_cards[game_status.getCard(0)].turnOver();
+      all_cards[game_status.getCard(1)].turnOver();
+      game_status.notPair();
+    }
+    return;
+  }
+
+  // Otherwise we just turn over the next card if clicked
+  for (let i = 0; i < all_cards.length; i++) {
+    if (all_cards[i].collidepoint(pos)) {
+      // Ignore if card hidden, or has already been turned up
+      if (all_cards[i].isHidden() || all_cards[i].isFaceUp()) {
+        return;
+      }
+      all_cards[i].turnOver();
+      // Update status
+      game_status.cardClicked(i);
+    }
+  }
+}
+
+function update(dt) {
+  count_down.update(dt);
+
+  if (game_status.isNewGame()) {
+  }
+  else if (game_status.isGameOver()) {
+  }
+  else {
+    if (count_down.get_time_remaining() <= 0) {
+      game_status.setGameOver();
+    }
+  }
+}
+
+/*
+ * Shuffle the cards and update their positions
+ * Do not draw as this is called before the screen is properly setup
+ */
+function dealcards() {
+  // Create a temporary list of card indexes that is then shuffled
+  let keys = [],
+      xpos = CARD_START_X,
+      ypos = CARD_START_Y,
+      cards_on_row = 0;
+  for (let i = 0; i < all_cards.length; i++) {
+    keys.push(i);
+  }
+  shuffle(keys);
+
+  // Setup card positions
+  for (let key of keys) {
+    // Reset (ie. unhide if hidden and display back)
+    all_cards[key].reset();
+    all_cards[key].setPosition(xpos, ypos);
+    xpos += X_DISTANCE_BETWEEN_CARDS;
+
+    cards_on_row += 1;
+    // If reached end of row - move to next
+    if (cards_on_row >= NUM_CARDS_PER_ROW) {
+      cards_on_row = 0;
+      xpos = CARD_START_X;
+      ypos += Y_DISTANCE_BETWEEN_CARDS;
+    }
+  }
+}
+
+// If reach end of level ?
+function end_level_reached() {
+  for (let card of all_cards) {
+    if (!card.isHidden()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// End of functions - start of initialization code
+
+function reset() {
+  count_down = new Timer(TIME_LIMIT);
+  game_status = new GamePlay(count_down);
+
+  all_cards = [];
+  // Create individual card objects, two per image
+  for (let key of CARDS_AVAILABLE.keys()) {
+    // Add to list of cards
+    all_cards.push(new Card(key, CARD_BACK, CARDS_AVAILABLE.get(key)));
+    // Add again (to have 2 cards for each img)
+    all_cards.push(new Card(key, CARD_BACK, CARDS_AVAILABLE.get(key)));
+  }
+
+  dealcards();
+}
+
+window.addEventListener('load', (event) => {
+  screen.init();
+});
+</script>
+</body>
+
+</html>
