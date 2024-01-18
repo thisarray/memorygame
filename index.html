@@ -425,7 +425,8 @@ function shuffle(x) {
  */
 class Card extends Actor {
   constructor(name, back_image, card_image) {
-    super(back_image, [0, 0]);
+    super(back_image);
+    this.pos = [0, 0];
 
     this.cardName = name;
     this.back_image = back_image;
